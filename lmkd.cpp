@@ -644,7 +644,7 @@ static bool s_crit_event_upgraded = false;
  */
 static long page_k = PAGE_SIZE / 1024;
 
-static bool update_props();
+static void update_props();
 static bool init_monitors();
 static void destroy_monitors();
 
@@ -1704,16 +1704,13 @@ static void ctrl_command_handler(int dsock_idx) {
         if (nargs != 0)
             goto wronglen;
         result = -1;
-        if (update_props()) {
-            if (!use_inkernel_interface) {
-                /* Reinitialize monitors to apply new settings */
-                destroy_monitors();
-                if (init_monitors()) {
-                    result = 0;
-                }
-            } else {
-                result = 0;
-            }
+        update_props();
+        if (!use_inkernel_interface) {
+            /* Reinitialize monitors to apply new settings */
+            destroy_monitors();
+            result = init_monitors() ? 0 : -1;
+        } else {
+            result = 0;
         }
 
         len = lmkd_pack_set_update_props_repl(packet, result);
@@ -4539,11 +4536,6 @@ static int init(void) {
     }
     ALOGI("Process polling is %s", pidfd_supported ? "supported" : "not supported" );
 
-    if (!lmkd_init_hook()) {
-        ALOGE("Failed to initialize LMKD hooks.");
-        return -1;
-    }
-
     return 0;
 }
 
@@ -4828,7 +4820,7 @@ int issue_reinit() {
     return res == UPDATE_PROPS_SUCCESS ? 0 : -1;
 }
 
-static bool update_props() {
+static void update_props() {
     /* By default disable low level vmpressure events */
     level_oomadj[VMPRESS_LEVEL_LOW] =
         GET_LMK_PROPERTY(int32, "low", OOM_SCORE_ADJ_MAX + 1);
@@ -4938,14 +4930,6 @@ static bool update_props() {
     //Update kernel interface during re-init.
     use_inkernel_interface = has_inkernel_module && !enable_userspace_lmk;
     update_psi_window_size();
-        
-    /* Call the update props hook */
-    if (!lmkd_update_props_hook()) {
-        ALOGE("Failed to update LMKD hook props.");
-        return false;
-    }
-
-    return true;
 }
 
 int main(int argc, char **argv) {
@@ -4956,10 +4940,7 @@ int main(int argc, char **argv) {
         return issue_reinit();
     }
 
-    if (!update_props()) {
-        ALOGE("Failed to initialize props, exiting.");
-        return -1;
-    }
+    update_props();
 
     ctx = create_android_logger(KILLINFO_LOG_TAG);
 
