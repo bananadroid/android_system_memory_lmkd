@@ -61,7 +61,8 @@ cc_binary {
         "-Wall",
         "-Werror",
         "-Wextra",
-        "-DLMKD_TRACE_KILLS"
+        "-DLMKD_TRACE_KILLS",
+        "-O3"
     ],
     init_rc: ["lmkd.rc"],
     defaults: ["stats_defaults", "lmkd_hooks_defaults"],
